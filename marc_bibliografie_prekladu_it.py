@@ -107,7 +107,6 @@ def add_595(record, row, author, code):
                 if ("originál neznámý" in work.lower())  or ("originál neexistuje" in work.lower()):
                     id = None  
                 else:
-                    print("work : ", work, "not in dict")
                     id = generate_id(code)  
         if code is None:
             record.add_ordered_field(Field(tag='595', indicators = ['1', '2'], subfields = ['a', author, 
@@ -237,11 +236,18 @@ def add_commmon(row, record, author, code):
     record.add_ordered_field(Field(tag='040', indicators=[' ',' '], subfields=['a', 'ABB060',
                                                                                'c', 'cze',
                                                                                'e', 'rda']))
-    record.add_ordered_field(Field(tag='041', indicators=['1',' '],subfields=['a', str(row['Jazyk díla']),
-                                                                             'h', str(row['Výchozí jazyk '])]))
+    record.add_ordered_field(Field(tag='041', indicators=['1',' '],subfields=['a', re.search('[^\s]+', str(row['Jazyk díla'])).group(0),
+                                                                             'h', re.search('[^\s]+', str(row['Výchozí jazyk '])).group(0)])) #'Výchozí jazyk '
 
-    if not(pd.isnull(row['Původní název'])):                                                                          
-        record.add_ordered_field(Field(tag='240', indicators = ['1', '0'], subfields = ['a', row['Původní název'], 
+    if not(pd.isnull(row['Původní název'])):
+        original_name = row['Původní název']
+        while original_name[0] == "\n":
+            original_name = original_name[1:] 
+        while original_name[0] == ' ':  
+            original_name = original_name[1:] 
+        while original_name[-1] == ' ':
+            original_name = original_name[0:-1]                                                                          
+        record.add_ordered_field(Field(tag='240', indicators = ['1', '0'], subfields = ['a', original_name , 
                                                                               '1', 'italsky' ]))
     else: 
         record.add_ordered_field(Field(tag='240', indicators = ['1', '0'], subfields = [ '1', 'italsky' ]))    
@@ -260,17 +266,19 @@ def add_commmon(row, record, author, code):
 
     record.add_ordered_field(Field(tag = 'OWN', indicators = [' ', ' '], subfields = ['a', 'UCLA']))
 
-def create_record_part_of_book(row, index, df):
+def create_record_part_of_book(row, df):
     record = Record(to_unicode=True,
         force_utf8=True)
-    print(row['Číslo záznamu'])
+    #print(row['Číslo záznamu'])
     record.leader = '-----naa----------------'  
-    ind = row['Je součást čeho (číslo záznamu)']
-    book_row = df.iloc[ind]
-    tup = add_author_code(book_row['Autor/ka + kód autority'], record)
-    author = tup[0]
+    ind = int(row['Je součást čeho (číslo záznamu)'])
+    book_row = df.loc[df['Číslo záznamu'] == ind]
+    tup = add_author_code(book_row['Autor/ka + kód autority'].values[0], record)
+    author = tup[0] 
     code = tup[1]
     add_commmon(row, record, author, code)  
+
+    return record
 
 
 def create_record_book(row):
@@ -299,11 +307,12 @@ def create_record_book(row):
 
 with open(OUT , 'wb') as writer:
     for index, row in df.iterrows():
+        print(row['Číslo záznamu'])
         if 'kniha' in row['Typ záznamu']: 
             record = create_record_book(row)
         if 'část knihy' in row['Typ záznamu']: 
-            record = create_record_book(row) 
-        print(record)    
+            record = create_record_part_of_book(row, df)
+            print(record)    
         writer.write(record.as_marc())
 
 
