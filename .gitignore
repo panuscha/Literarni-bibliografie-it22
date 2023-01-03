@@ -1,7 +1,17 @@
-Bibliografie prekladu.xlsx 
-Bibliografie_prekladu_old.xlsx
-czech_translations_full_18_01_2022.mrc
-czech_translations_full_18_01_2022.mrk
-marc_it.mrc
-marc_it.mrk
+# Ignore everything
+*
+
+# But not these files...
+!.gitignore
+!excel_to_csv.py
+!marc_bibliografie_prekladu_it.py
+!read_marc.py
+# etc...
+
+# ...even if they are in subdirectories
+!*/
+
+# if the files to be tracked are in subdirectories
+!*/a/b/file1.txt
+!*/a/b/c/*
 Bibliografie_prekladu.csv
