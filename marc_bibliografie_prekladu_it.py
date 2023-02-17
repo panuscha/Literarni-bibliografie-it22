@@ -38,7 +38,12 @@ OUT = 'data/marc_it.mrc'
 
 df = pd.read_csv(IN, encoding='utf_8')
 
-italian_articles =  ['il', 'lo', 'la', 'gli', 'le', 'i', 'l\'', 'un', 'una', 'uno', 'un\'', 'dei', 'degli', 'delle']
+finalauthority_path = 'data/finalauthority_simple.csv'
+finalauthority = pd.read_csv(finalauthority_path,  index_col=0)
+finalauthority.index= finalauthority['nkc_id']
+
+
+italian_articles =  ['il', 'lo', 'la', 'gli', 'le', 'i', 'un', 'una', 'uno', 'dei', 'degli', 'delle']
 
 def add_008(row, record):
     date_record_creation = str(datetime.today().strftime('%y%m%d'))
@@ -93,13 +98,19 @@ def add_595(record, row, author, code):
         if not(pd.isnull(row['Původní název'])):  
             record.add_ordered_field(Field(tag='595', indicators = ['1', '2'], subfields = ['t', work  ]))                                                                         
     else:
+        if not code is None:
+            if code in finalauthority.index:
+                    date = str(finalauthority.loc[code]['cz_dates' ]) 
+            else:
+                date = None        
+        else:
+            date = None            
         if not author.lower() in dict_author_work.keys():
             if ("originál neznámý" in work.lower())  or ("originál neexistuje" in work.lower()):
                 id = None  
             else:
                 id = generate_id(code)          
         else:
-            
             dict_works = dict_author_work[author.lower()]
             if work.lower() in dict_works.keys():
                 id = dict_works[work.lower()]
@@ -107,21 +118,35 @@ def add_595(record, row, author, code):
                 if ("originál neznámý" in work.lower())  or ("originál neexistuje" in work.lower()):
                     id = None  
                 else:
-                    id = generate_id(code)  
+                    id = generate_id(code) 
+           
         if code is None:
             record.add_ordered_field(Field(tag='595', indicators = ['1', '2'], subfields = ['a', author, 
                                                                             't', work  ]))
-        else:  
-            if id is None:
-                record.add_ordered_field(Field(tag='595', indicators = ['1', '2'], subfields = ['a', author, 
+        else: 
+            if date is None: 
+                if id is None:
+                    record.add_ordered_field(Field(tag='595', indicators = ['1', '2'], subfields = ['a', author,
                                                                             '7', str(code),
-                                                                            't', work ]))  
-            else:
-                record.add_ordered_field(Field(tag='595', indicators = ['1', '2'], subfields = ['a', author, 
+                                                                            't', work ])) 
+                else:
+                    record.add_ordered_field(Field(tag='595', indicators = ['1', '2'], subfields = ['a', author,
                                                                             '7', str(code),
                                                                             't', work ,
-                                                                            '1', id ]))                                                                                                                                  
-                                                                          
+                                                                            '1', id ]))                                                             
+            else:
+                if id is None:
+                    record.add_ordered_field(Field(tag='595', indicators = ['1', '2'], subfields = ['a', author,
+                                                                            'd', date, 
+                                                                            '7', str(code),
+                                                                            't', work ]))
+                else:                                                            
+                    record.add_ordered_field(Field(tag='595', indicators = ['1', '2'], subfields = ['a', author,
+                                                                            'd', date, 
+                                                                            '7', str(code),
+                                                                            't', work ,
+                                                                            '1', id ]))   
+             
 def add_773(record, row):
     data = row['Údaje o časopiseckém vydání']
     print("Údaje o časopiseckém vydání", data)
@@ -146,9 +171,6 @@ def add_773(record, row):
                                                                             'g', rest ]))
     
 
-
-
-
 def add_author_code(data, record):
     if not(pd.isnull(data)):
         start = data.find('(')
@@ -161,7 +183,15 @@ def add_author_code(data, record):
         if author[0] == " ":
             author = author[1:-1]
         code = data[start+1: end]
-        record.add_ordered_field(Field(tag='100', indicators=['1',' '], subfields=['a', author,
+        if code in finalauthority.index:
+                date = str(finalauthority.loc[code]['cz_dates' ]) 
+                record.add_ordered_field(Field(tag='100', indicators=['1',' '], subfields=['a', author,
+                                                                                'd', date,
+                                                                                '7', code, 
+                                                                                '4', 'aut']))    
+        else:
+                date = None  
+                record.add_ordered_field(Field(tag='100', indicators=['1',' '], subfields=['a', author,
                                                                                 '7', code, 
                                                                                 '4', 'aut']))
         return (author, code)
@@ -225,12 +255,13 @@ def add_245(liability, title, subtitle,  record):
     
     if title[0:2].lower() == 'l\'':
         skip = str(2)
-        
+    if title[0:2].lower() == 'un\'':
+        skip = str(3)   
     first_word = re.search('^([\w]+)', title)
     if not first_word is None: 
         first_word = re.search('^([\w]+)', title).group(0)
         if first_word.lower() in italian_articles:
-            skip = str(len(first_word))
+            skip = str(len(first_word) + 1)
         else:
             skip = str(0)    
     else:
@@ -366,14 +397,14 @@ def create_article(row):
 
 with open(OUT , 'wb') as writer:
     for index, row in df.iterrows():
-        print(row['Číslo záznamu'])
+        #print(row['Číslo záznamu'])
         if 'kniha' in row['Typ záznamu']: 
             record = create_record_book(row)
         if 'část knihy' in row['Typ záznamu']: 
             record = create_record_part_of_book(row, df)
         if 'článek v časopise' in row['Typ záznamu']:
             record = create_article(row)
-            print(record)
+        print(record)
         writer.write(record.as_marc())
 
 
