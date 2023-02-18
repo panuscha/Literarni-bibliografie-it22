@@ -45,6 +45,18 @@ finalauthority.index= finalauthority['nkc_id']
 
 italian_articles =  ['il', 'lo', 'la', 'gli', 'le', 'i', 'un', 'una', 'uno', 'dei', 'degli', 'delle']
 
+def delete_whitespaces(string):
+    while string[0] == '\n':  
+        string = string[1:]
+    while string[0] == ' ':  
+        string = string[1:] 
+    while string[-1] == '\n':  
+        string = string[0:-1]
+    while string[-1] == ' ':
+        string = string[0:-1]
+    return string    
+
+
 def add_008(row, record):
     date_record_creation = str(datetime.today().strftime('%y%m%d'))
     letter = 's'
@@ -87,13 +99,7 @@ def generate_id(code):
     return ret  
 
 def add_595(record, row, author, code):
-    work = str(row['Původní název'])
-    while work[0] == '\n':  
-        work = work[1:]
-    while work[0] == ' ':  
-        work = work[1:] 
-    while work[-1] == ' ':
-        work = work[0:-1]    
+    work = delete_whitespaces(str(row['Původní název']))   
     if author is None:
         if not(pd.isnull(row['Původní název'])):  
             record.add_ordered_field(Field(tag='595', indicators = ['1', '2'], subfields = ['t', work  ]))                                                                         
@@ -199,22 +205,15 @@ def add_author_code(data, record):
         return (None, None)
 
 def get_title_subtitle(data):
-    while data[0] == "\n":
-        data = data[1:] 
-    while data[0] == ' ':  
-        data = data[1:] 
-    while data[-1] == ' ':
-        data = data[0:-1]
+    data = delete_whitespaces(data)
     split = data.find(':')
     if split == -1:
         return (data, '' )
     else:
         title = data[:split]
         subtitle = data[split+1:]
-        while title[-1] == ' ':
-            title = title[0:-1] 
-        while subtitle[0] == ' ':
-            subtitle = subtitle[1:]         
+        title = delete_whitespaces(title)
+        subtitle = delete_whitespaces(subtitle)         
         return(title, subtitle)   
 
 def add_264(row, record):
@@ -225,7 +224,7 @@ def add_264(row, record):
         city =  re.search('^[\w\s]+', city_country_publisher).group(0)
         if '§' in city_country_publisher:
             start = city_country_publisher.find('§') 
-            publisher = re.search('(?<=\:\s).+', city_country_publisher[:start]).group(0)
+            publisher = re.search('(?<=\:\s).+', delete_whitespaces(city_country_publisher[:start])).group(0)
             year = row['Rok'] 
             record.add_ordered_field(Field(tag = '264', indicators = [' ', '1'], subfields = ['a', city + ':', 
                                                                             'b', publisher, 
@@ -243,20 +242,15 @@ def add_264(row, record):
 def add_translator(translators, record):
     while '§' in translators:
             start = translators.find('§') 
-            t = re.search('\w+', translators[:start ]).group(0)  
+            t = delete_whitespaces(translators[:start ])
             record.add_ordered_field(Field(tag='700', indicators=['1',' '], subfields=['a', t,
                                                                                         '4', 'trl'])) 
             translators = translators[start+1:]
-    t = re.search('\w+', translators).group(0)        
+    t = delete_whitespaces(translators)        
     record.add_ordered_field(Field(tag='700', indicators=['1',' '], subfields=['a', t,
                                                                                         '4', 'trl']))
 
 def add_245(liability, title, subtitle,  record):
-    
-    if title[0:2].lower() == 'l\'':
-        skip = str(2)
-    if title[0:2].lower() == 'un\'':
-        skip = str(3)   
     first_word = re.search('^([\w]+)', title)
     if not first_word is None: 
         first_word = re.search('^([\w]+)', title).group(0)
@@ -266,7 +260,10 @@ def add_245(liability, title, subtitle,  record):
             skip = str(0)    
     else:
         skip = str(0)
-
+    if title[0:2].lower() == "l'":
+            skip = str(2)
+    if title[0:2].lower() == "un'":
+            skip = str(3) 
     if subtitle == '' and pd.isnull(liability):                                                                          
         record.add_ordered_field(Field(tag = '245', indicators = ['1', skip], subfields = ['a', title]))                                                                          
     else:
@@ -286,8 +283,6 @@ def add_commmon(row, record, author, code):
     record.add_ordered_field(Field(tag='001', indicators = [' ', ' '], data=str('it22'+ "".join(['0' for a in range(6-len(str(row['Číslo záznamu'])))]) + str(row['Číslo záznamu'])))) 
     record.add_ordered_field(Field(tag='003', indicators = [' ', ' '], data='CZ PrUCL')) # institution
     
-    
-    # ISBN
     if not(pd.isnull(row['ISBN'])):
         record.add_ordered_field(Field(tag='020', indicators=[' ',' '], subfields=['a', str(row['ISBN'])] )) 
 
@@ -302,13 +297,7 @@ def add_commmon(row, record, author, code):
                                                                              'h', re.search('[^\s]+', str(row['Výchozí jazyk '])).group(0),
                                                                              'k', re.search('[^\s]+', str(row['Zprostředkovací jazyk'])).group(0)]) )
     if not(pd.isnull(row['Původní název'])) and ("originál neznámý" in str(row['Původní název']).lower())  or ("originál neexistuje" in str(row['Původní název']).lower()):
-        original_name = row['Původní název']
-        while original_name[0] == "\n":
-            original_name = original_name[1:] 
-        while original_name[0] == ' ':  
-            original_name = original_name[1:] 
-        while original_name[-1] == ' ':
-            original_name = original_name[0:-1]                                                                          
+        original_name = delete_whitespaces(row['Původní název'])                                                                        
         record.add_ordered_field(Field(tag='240', indicators = ['1', '0'], subfields = ['a', original_name , 
                                                                               '1', 'italsky' ]))
     else: 
@@ -317,6 +306,12 @@ def add_commmon(row, record, author, code):
     (title, subtitle) = get_title_subtitle(str(row['Název díla dle titulu (v příslušném písmu)']))
     liabiliy = row['Údaje o odpovědnosti a další informace']
     add_245(liabiliy, title, subtitle, record)
+    if not(pd.isnull(row['Počet stran'])) and not (row['Počet stran'] == ' '):
+        record.add_ordered_field(Field(tag = '300', indicators=[' ', ' '], subfields=['a', str(int(row['Počet stran'])) + ' p.']))
+    
+    if not(pd.isnull(row['Zdroj či odkaz'])) and not (row['Zdroj či odkaz'] == ' '):
+          record.add_ordered_field(Field(tag = '998', indicators=[' ', ' '], subfields=['a', row['Zdroj či odkaz'] ] ) )
+
     add_595(record, row, author, code)  
 
     if not(pd.isnull(row['Překladatel/ka'])):
@@ -358,15 +353,7 @@ def create_record_book(row):
     add_008(row, record)
     add_commmon(row, record, author, code)      
     add_264(row, record)
-    if not(pd.isnull(row['Počet stran'])):
-        record.add_ordered_field(Field(tag = '300', indicators=[' ', ' '], subfields=['a', str(int(row['Počet stran'])) + ' p.'  ]))                                                                             
-                                                                             
-    if not(pd.isnull(row['technická poznámka'])):
-        record.add_ordered_field(Field(tag='506', indicators = [' ', ' '], data = row['technická poznámka']))
 
-    if not(pd.isnull(row['Zdroj či odkaz'])):
-          record.add_ordered_field(Field(tag = '998', indicators=[' ', ' '], subfields=['a', row['Zdroj či odkaz'] ] ) )
-    
     return record
 
 def create_article(row):
@@ -379,16 +366,6 @@ def create_article(row):
     add_008(row, record) 
     add_commmon(row, record, author, code)
     add_773(record, row)
-
-
-    if not(pd.isnull(row['Počet stran'])):
-        record.add_ordered_field(Field(tag = '300', indicators=[' ', ' '], subfields=['a', str(int(row['Počet stran'])) ]))                                                                             
-                                                                             
-    if not(pd.isnull(row['technická poznámka'])):
-        record.add_ordered_field(Field(tag='506', indicators = [' ', ' '], data = row['technická poznámka']))
-
-    if not(pd.isnull(row['Zdroj či odkaz'])):
-          record.add_ordered_field(Field(tag = '998', indicators=[' ', ' '], subfields=['a', row['Zdroj či odkaz'] ] ) )
 
     return record 
 
@@ -404,7 +381,7 @@ with open(OUT , 'wb') as writer:
             record = create_record_part_of_book(row, df)
         if 'článek v časopise' in row['Typ záznamu']:
             record = create_article(row)
-        print(record)
+        #print(record)
         writer.write(record.as_marc())
 
 
