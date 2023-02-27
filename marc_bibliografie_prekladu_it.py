@@ -320,7 +320,7 @@ def add_commmon(row, record, author, code):
 def create_record_part_of_book(row, df):
     record = Record(to_unicode=True,
         force_utf8=True)
-    record.leader = '-----naa----------------'  
+    record.leader = '-----naa---------4i-4500'  
     ind = int(row['Je součást čeho (číslo záznamu)'])
     book_row = df.loc[df['Číslo záznamu'] == ind]
     tup = add_author_code(book_row['Autor/ka + kód autority'].values[0], record)
@@ -338,7 +338,7 @@ def create_record_part_of_book(row, df):
 def create_record_book(row):
     record = Record(to_unicode=True,
         force_utf8=True)
-    record.leader = '-----nam----------------'
+    record.leader = '-----nam---------4i-4500'
     tup = add_author_code(row['Autor/ka + kód autority'], record)
     author = tup[0]
     code = tup[1]
@@ -373,6 +373,7 @@ with open(OUT , 'wb') as writer:
             record = create_record_part_of_book(row, df)
         if 'článek v časopise' in row['Typ záznamu']:
             record = create_article(row)
+        print(record)    
         writer.write(record.as_marc())
 
 
