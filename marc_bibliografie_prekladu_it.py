@@ -351,7 +351,7 @@ def create_record_book(row):
 def create_article(row):
     record = Record(to_unicode=True,
         force_utf8=True)
-    record.leader = '-----nab----------------' 
+    record.leader = '-----nab---------4i-4500' 
     tup = add_author_code(row['Autor/ka + kód autority'], record)
     author = tup[0]
     code = tup[1]
