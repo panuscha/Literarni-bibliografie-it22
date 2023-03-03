@@ -46,13 +46,9 @@ finalauthority.index= finalauthority['nkc_id']
 italian_articles =  ['il', 'lo', 'la', 'gli', 'le', 'i', 'un', 'una', 'uno', 'dei', 'degli', 'delle']
 
 def delete_whitespaces(string):
-    while string[0] == '\n':  
+    while string[0] == '\n' or string[0] == ' ':  
         string = string[1:]
-    while string[0] == ' ':  
-        string = string[1:] 
-    while string[-1] == '\n':  
-        string = string[0:-1]
-    while string[-1] == ' ':
+    while string[-1] == '\n' or string[-1] == ' ': 
         string = string[0:-1]
     return string    
 
@@ -244,8 +240,41 @@ def add_translator(translators, record):
     t = delete_whitespaces(translators)        
     record.add_ordered_field(Field(tag='700', indicators=['1',' '], subfields=['a', t,
                                                                                         '4', 'trl']))
+def c_245(row, liability,author, translators):
+    c = ""
+    if not pd.isnull(author): 
+        surname = delete_whitespaces(re.search('.*(?=,)', author ).group(0)) 
+        name = delete_whitespaces(re.search('(?<=\,\s).+', author).group(0))
+        c += name + ' ' + surname + ' '
+    else:
+        print("No author")
+    if not(pd.isnull(translators)):  
+        c += '; traduzione di '
+        while True:
+                if '§' in translators:
+                    #Finds character §
+                    start = translators.find('§') 
+                    # Finds the character "," a matches everything ahead it 
+                    surname = delete_whitespaces(re.search('.*(?=,)', translators[:start] ).group(0)) 
+                    # Finds the character "," a matches everything behind it 
+                    name = delete_whitespaces(re.search('(?<=\,\s).+', translators[:start]).group(0)) 
+                    c += name + ' ' +  surname + ' , '
+                    translators = translators[start + 1: ]
+                else:
+                    break 
+        surname = delete_whitespaces(re.search('.*(?=,)', translators ).group(0)) 
+        name = delete_whitespaces(re.search('(?<=\,\s).+', translators).group(0))
+        c += name + ' ' +  surname 
+    else:
+        print("No translator")
+    if not pd.isnull(liability):
+        c += ' ; ' + delete_whitespaces(str(liability))
+    return c    
 
-def add_245(liability, title, subtitle,  record):
+
+
+
+def add_245(row, liability, title, subtitle, author, translators,  record):
     first_word = re.search('^([\w]+)', title)
     if not first_word is None: 
         first_word = re.search('^([\w]+)', title).group(0)
@@ -259,22 +288,23 @@ def add_245(liability, title, subtitle,  record):
             skip = str(2)
     if title[0:2].lower() == "un'":
             skip = str(3) 
-    if subtitle == '' and pd.isnull(liability):                                                                          
+    c = c_245(row, liability, author, translators)        
+    if subtitle == '' and c == '':                                                                          
         record.add_ordered_field(Field(tag = '245', indicators = ['1', skip], subfields = ['a', title]))                                                                          
     else:
-        if pd.isnull(liability):
+        if c == '':
             record.add_ordered_field(Field(tag = '245', indicators = ['1', skip], subfields = ['a', title + " :", 
                                                                                     'b', subtitle]))
         elif subtitle == '':     
             record.add_ordered_field(Field(tag = '245', indicators = ['1', skip], subfields = ['a', delete_whitespaces(title), 
-                                                                                    'c', delete_whitespaces(liability)]))
+                                                                                    'c', delete_whitespaces(c)]))
         else:
             record.add_ordered_field(Field(tag = '245', indicators = ['1', skip], subfields = ['a', title + " :",
                                                                                     'b', subtitle + " /", 
-                                                                                    'c', delete_whitespaces(liability)]))
+                                                                                    'c', delete_whitespaces(c)]))
 
 
-def add_commmon(row, record, author, code):
+def add_commmon(row, record, author, code, translators):
     record.add_ordered_field(Field(tag='001', indicators = [' ', ' '], data=str('it22'+ "".join(['0' for a in range(6-len(str(row['Číslo záznamu'])))]) + str(row['Číslo záznamu'])))) 
     record.add_ordered_field(Field(tag='003', indicators = [' ', ' '], data='CZ PrUCL')) 
     
@@ -296,9 +326,7 @@ def add_commmon(row, record, author, code):
         record.add_ordered_field(Field(tag='240', indicators = ['1', '0'], subfields = ['a', original_name , 
                                                                               'l', 'italsky' ]))
     
-    (title, subtitle) = get_title_subtitle(str(row['Název díla dle titulu (v příslušném písmu)']))
-    liabiliy = row['Údaje o odpovědnosti a další informace']
-    add_245(liabiliy, title, subtitle, record)
+    
     if not(pd.isnull(row['Počet stran'])) and row['Počet stran'].isnumeric():
         record.add_ordered_field(Field(tag = '300', indicators=[' ', ' '], subfields=['a', str(int(row['Počet stran'])) + ' p.']))
     
@@ -307,9 +335,12 @@ def add_commmon(row, record, author, code):
 
     add_595(record, row, author, code)  
 
-    if not(pd.isnull(row['Překladatel/ka'])):
-        add_translator(row['Překladatel/ka'], record ) 
-        
+    if not(pd.isnull(translators)):
+        add_translator(translators, record ) 
+
+    (title, subtitle) = get_title_subtitle(str(row['Název díla dle titulu (v příslušném písmu)']))
+    liabiliy = row['Údaje o odpovědnosti a další informace']
+    add_245(row, liabiliy, title, subtitle, author, translators,record)    
     record.add_ordered_field(Field(tag = '910', indicators=[' ', ' '], subfields=['a', 'ABB060' ] ) )
     record.add_ordered_field(Field(tag = '964', indicators=[' ', ' '], subfields=['a', 'TRL' ] ) )
 
@@ -344,11 +375,12 @@ def create_record_part_of_book(row, df):
     tup = add_author_code(book_row['Autor/ka + kód autority'].values[0], record)
     author = tup[0] 
     code = tup[1]
+    translators = book_row['Překladatel/ka'].values[0]
     # From Dataframe to Pandas Series
     book_row = book_row.squeeze()
     add_008(book_row, record)
     add_264(book_row, record)
-    add_commmon(row, record, author, code)  
+    add_commmon(row, record, author, code, translators)  
     add_995_part_of_book(row, record)
     return record
 
@@ -360,8 +392,9 @@ def create_record_book(row, df):
     tup = add_author_code(row['Autor/ka + kód autority'], record)
     author = tup[0]
     code = tup[1]
+    translators = row['Překladatel/ka']
     add_008(row, record)
-    add_commmon(row, record, author, code)      
+    add_commmon(row, record, author, code, translators)      
     add_264(row, record)
     if row['typ díla (celé dílo, úryvek, antologie, souborné dílo)'] == 'souborné dílo':
         add_994_book(row, df, record)     
@@ -374,8 +407,9 @@ def create_article(row):
     tup = add_author_code(row['Autor/ka + kód autority'], record)
     author = tup[0]
     code = tup[1]
+    translators = row['Překladatel/ka']
     add_008(row, record) 
-    add_commmon(row, record, author, code)
+    add_commmon(row, record, author, code, translators)
     add_773(record, row)
 
     return record 
