@@ -240,9 +240,14 @@ def add_264(row, record):
         return record    
     city_country_publisher = delete_whitespaces(row['Město vydání, země vydání, nakladatel'])
     while True:
-        # matches first words in string 
-        
-        city =  delete_whitespaces(re.search('^[\w\s]+', city_country_publisher).group(0))
+                                # Matches everything before ( 
+        city_unknown = re.search('.*(?=\s+\()', city_country_publisher).group(0)
+        # if string contains ? -> city is unknown
+        if  '?' in city_unknown:
+            city = "[s. l.]"
+        else:  
+            # matches first words in string   
+            city =  delete_whitespaces(re.search('^[\w\s]+', city_country_publisher).group(0))
         if '§' in city_country_publisher:
             # finds position of character §
             start = city_country_publisher.find('§') 
@@ -259,13 +264,10 @@ def add_264(row, record):
     # finds the character ":" a matches everything behind it     
     publisher = delete_whitespaces(re.search('(?<=\:\s).+', city_country_publisher).group(0))
     year = row['Rok']
-    if city != "?":
-        record.add_ordered_field(Field(tag = '264', indicators = [' ', '1'], subfields = ['a', city + ':', 
+    record.add_ordered_field(Field(tag = '264', indicators = [' ', '1'], subfields = ['a', city + ':', 
                                                                             'b', publisher + ',',
                                                                             'c', str(int(year)) ]))  
-    else:
-        record.add_ordered_field(Field(tag = '264', indicators = [' ', '1'], subfields = ['b', publisher + ',',
-                                                                            'c', str(int(year)) ]))        
+     
 
 def add_translator(translators, record):
     """Adds translators to field 700.
